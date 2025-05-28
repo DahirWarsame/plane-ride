@@ -1,0 +1,423 @@
+<?php
+
+ function firstAssignSeatsTest(array $tickets): array
+{
+    // Filtering the seats by class
+    $firstClassSeats = array_filter($this->getSeats(), function ($seat) {
+        return $seat->getSeatClass() === Tickets737::FIRST_CLASS;
+    });
+    $economyPlusClassSeats = array_filter($this->getSeats(), function ($seat) {
+        return $seat->getSeatClass() === Tickets737::ECONOMY_PLUS;
+    });
+
+    $economyClassSeats = array_filter($this->getSeats(), function ($seat) {
+        return $seat->getSeatClass() === Tickets737::ECONOMY;
+    });
+
+    // Filtering the tickets by class
+    $firstClassTickets = array_filter($tickets, function ($ticket) {
+        return $ticket->getSeating() === Tickets737::FIRST_CLASS;
+    });
+
+    $economyPlusClassTickets = array_filter($tickets, function ($ticket) {
+        return $ticket->getSeating() === Tickets737::ECONOMY_PLUS;
+    });
+
+    $economyClassTickets = array_filter($tickets, function ($ticket) {
+        return $ticket->getSeating() === Tickets737::ECONOMY;
+    });
+    $classes = [
+        Tickets737::FIRST_CLASS,
+        Tickets737::ECONOMY_PLUS,
+        Tickets737::ECONOMY
+    ];
+
+    $assignedTickets = [];
+
+    foreach ($firstClassSeats as $seat) {
+
+        if (empty($firstClassTickets) && $seat->isAssigned()) {
+            break;
+        }
+
+        // Checking if there is a ticket with getPrefersWindowSeat() true
+        foreach ($firstClassTickets as $key => $ticket) {
+            if ($ticket->getPrefersWindowSeat()) {
+                $availableSeat = $this->getAvailableFirstClassWindowSeat();
+                $ticket->setSeatNumber($availableSeat->getSeatNumber());
+                $seat->assignSeat();
+                $assignedTickets[] = $ticket;
+                unset($firstClassTickets[$key]);
+                break;
+            }
+        }
+
+        // If no preferred seat was found, assign a non-preferred seat
+        if (!empty($firstClassTickets)) {
+            $ticket = array_shift($firstClassTickets);
+            $ticket->setSeatNumber($seat->getSeatNumber());
+            $assignedTickets[] = $ticket;
+        }
+    }
+    foreach ($economyPlusClassSeats as $seat) {
+        if (empty($economyPlusClassTickets)) {
+            break;
+        }
+
+        // Checking if there is a ticket with getPrefersWindowSeat() true
+        foreach ($economyPlusClassTickets as $key => $ticket) {
+            if ($ticket->getPrefersWindowSeat() && preg_match('/[AF]$/', $seat->getSeatNumber())) {
+                $ticket->setSeatNumber($seat->getSeatNumber());
+                $assignedTickets[] = $ticket;
+                unset($economyPlusClassTickets[$key]);
+                break;
+            }
+        }
+
+        // Checking if there is a ticket with hasTravelPartner true
+        foreach ($economyPlusClassTickets as $key => $ticket) {
+            if ($ticket->hasTravelPartner() && $ticket->getPassportNumber() == $ticket->getTravelsWith()->getPassportNumber()) {
+                $ticket->setSeatNumber($seat->getSeatNumber());
+                $assignedTickets[] = $ticket;
+                unset($economyPlusClassTickets[$key]);
+                break;
+            }
+        }
+
+        // If no preferred seat was found, assign a non-preferred seat
+        if (!empty($economyPlusClassTickets)) {
+            $ticket = array_shift($economyPlusClassTickets);
+            $ticket->setSeatNumber($seat->getSeatNumber());
+            $assignedTickets[] = $ticket;
+        }
+    }
+    foreach ($economyClassSeats as $seat) {
+        if (empty($economyClassTickets)) {
+            break;
+        }
+
+        // Checking if there is a ticket with getPrefersWindowSeat() true
+        foreach ($economyClassTickets as $key => $ticket) {
+            if ($ticket->getPrefersWindowSeat() && preg_match('/[AF]$/', $seat->getSeatNumber())) {
+                $ticket->setSeatNumber($seat->getSeatNumber());
+                $assignedTickets[] = $ticket;
+                unset($economyClassTickets[$key]);
+                break;
+            }
+        }
+
+        // Checking if there is a ticket with hasTravelPartner true
+        foreach ($economyClassTickets as $key => $ticket) {
+            if ($ticket->hasTravelPartner() && $ticket->getPassportNumber() == $ticket->getTravelsWith()->getPassportNumber()) {
+                $ticket->setSeatNumber($seat->getSeatNumber());
+                $assignedTickets[] = $ticket;
+                unset($economyClassTickets[$key]);
+                break;
+            }
+        }
+
+        // If no preferred seat was found, assign a non-preferred seat
+        if (!empty($economyClassTickets)) {
+            $ticket = array_shift($economyClassTickets);
+            $ticket->setSeatNumber($seat->getSeatNumber());
+            $assignedTickets[] = $ticket;
+        }
+    }
+    return $assignedTickets;
+}
+
+ function CorrectAssignSeats(array $tickets)
+{
+    $classes = [
+        Tickets737::FIRST_CLASS,
+        Tickets737::ECONOMY_PLUS,
+        Tickets737::ECONOMY
+    ];
+
+    $assignedTickets = [];
+
+    foreach ($classes as $class) {
+        $classSeats = array_filter($this->getSeats(), function ($seat) use ($class) {
+            return $seat->getSeatClass() === $class;
+        });
+
+        $classTickets = array_filter($tickets, function ($ticket) use ($class) {
+            return $ticket->getSeating() === $class;
+        });
+
+        foreach ($classSeats as $seat) {
+            if (empty($classTickets) && !$seat->isAssigned()) {
+                break;
+            }
+
+            // Checking if a ticket has a travel partner
+            foreach ($classTickets as $key => $ticket) {
+                if ($ticket->hasTravelPartner() && $ticket->getPassportNumber() === $ticket->getTravelsWith()->getPassportNumber()) {
+                    $ticket->setSeatNumber($seat->getSeatNumber());
+                    $seat->setTicket($ticket);
+                    $assignedTickets[] = $ticket;
+
+                    // assign the travel partner a different seat
+                    $partner = $ticket->getTravelsWith();
+                    $partnerSeat = array_shift($classSeats);
+                    $partner->setSeatNumber($partnerSeat->getSeatNumber());
+                    $partnerSeat->setTicket($partner);
+                    $assignedTickets[] = $partner;
+
+                    // remove both tickets from the classTickets array
+                    unset($classTickets[$key]);
+                    break;
+                }
+            }
+
+            // Checking if a ticket prefers a window seat and the seat is A or F
+            foreach ($classTickets as $key => $ticket) {
+                if ($ticket->getPrefersWindowSeat() && preg_match('/[AF]$/', $seat->getSeatNumber())) {
+                    $ticket->setSeatNumber($seat->getSeatNumber());
+                    $seat->setTicket($ticket);
+                    $assignedTickets[] = $ticket;
+                    unset($classTickets[$key]);
+                    break;
+                }
+            }
+
+            // If no preferred window seat was found or no travel partner was found, assign a non-preferred seat
+            if (!empty($classTickets)) {
+                $ticket = array_shift($classTickets);
+                $ticket->setSeatNumber($seat->getSeatNumber());
+                $seat->setTicket($ticket);
+                $assignedTickets[] = $ticket;
+            }
+        }
+    }
+    return $assignedTickets;
+}
+
+// Niet slect maar duurt te lang
+ 
+function findMatchingSeatForTravelPartner($ticket, $seats, $assignedTickets, $seatClass)
+{
+    // Check if the passenger wants to sit next to a travel partner
+    if (!$ticket->hasTravelPartner()) {
+        return null;
+    }
+
+    // Find an available seat in the same row that matches the seat class preference
+    foreach ($seats as $seat) {
+        if (
+            $seat->getSeatClass() === $seatClass
+            && !in_array($seat, $assignedTickets)
+        ) {
+            return $seat;
+        }
+    }
+
+    // If no matching seat was found in the same row, return null
+    return null;
+}
+
+
+ function findMatchingSeatForWindowPreference(Ticket $ticket, array $seats, $assignedTickets)
+{
+    // Check if the passenger wants a window seat
+    if (!$ticket->getPrefersWindowSeat()) {
+        return null;
+    }
+
+    // Find an available window seat that matches the seat class preference
+    foreach ($seats as $seat) {
+        if (
+            $seat->isWindowSeat()
+            && $seat->getSeatClass() === $ticket->getSeating()
+            && !$seat->isAssigned()
+        ) {
+            return $seat;
+        }
+    }
+
+    // If no matching seat was found, return null
+    return null;
+}
+
+
+// --------------------- Eerste poging ----------------------
+function WrongAssignSeats(array $tickets)
+{
+    $classes = [
+        Tickets737::FIRST_CLASS,
+        Tickets737::ECONOMY_PLUS,
+        Tickets737::ECONOMY
+    ];
+
+    $assignedTickets = [];
+
+    foreach ($classes as $class) {
+        $classSeats = array_filter($this->getSeats(), function ($seat) use ($class) {
+            return $seat->getSeatClass() === $class;
+        });
+
+        $classTickets = array_filter($tickets, function ($ticket) use ($class) {
+            return $ticket->getSeating() === $class;
+        });
+
+        foreach ($classSeats as $seat) {
+            if (empty($classTickets)) {
+                break;
+            }
+
+            // Checking if a ticket has a travel partner
+            foreach ($classTickets as $key => $ticket) {
+                if ($ticket->hasTravelPartner() && $ticket->getPassportNumber() === $ticket->getTravelsWith()->getPassportNumber()) {
+                    $ticket->setSeatNumber($seat->getSeatNumber());
+                    $assignedTickets[] = $ticket;
+                    unset($classTickets[$key]);
+                    break;
+                }
+            }
+
+            // Checking if a ticket prefers a window seat and the seat is A or F
+            foreach ($classTickets as $key => $ticket) {
+                if ($ticket->getPrefersWindowSeat() && preg_match('/[AF]$/', $seat->getSeatNumber())) {
+                    $ticket->setSeatNumber($seat->getSeatNumber());
+                    $assignedTickets[] = $ticket;
+                    unset($classTickets[$key]);
+                    break;
+                }
+            }
+
+            // If no preferred window seat was found or no travel partner was found, assign a non-preferred seat
+            if (!empty($classTickets)) {
+                $ticket = array_shift($classTickets);
+                $ticket->setSeatNumber($seat->getSeatNumber());
+                $assignedTickets[] = $ticket;
+            }
+        }
+    }
+
+    return $assignedTickets;
+}
+
+ function assignSeats(array $tickets)
+{
+    $firstClassSeats = array_filter($this->getSeats(), function ($seat) {
+        return $seat->getSeatClass() === Tickets737::FIRST_CLASS;
+    });
+
+    $economyPlusClassSeats = array_filter($this->getSeats(), function ($seat) {
+        return $seat->getSeatClass() === Tickets737::ECONOMY_PLUS;
+    });
+
+    $economyClassSeats = array_filter($this->getSeats(), function ($seat) {
+        return $seat->getSeatClass() === Tickets737::ECONOMY;
+    });
+
+    $firstClassTickets = array_filter($tickets, function ($ticket) {
+        return $ticket->getSeating() === Tickets737::FIRST_CLASS;
+    });
+
+    $economyPlusClassTickets = array_filter($tickets, function ($ticket) {
+        return $ticket->getSeating() === Tickets737::ECONOMY_PLUS;
+    });
+
+    $economyClassTickets = array_filter($tickets, function ($ticket) {
+        return $ticket->getSeating() === Tickets737::ECONOMY;
+    });
+
+    $assignedTickets = [];
+
+    foreach ($firstClassSeats as $seat) {
+        if (empty($firstClassTickets)) {
+            break;
+        }
+
+        $ticket = array_shift($firstClassTickets);
+
+        // $seat->set($ticket);
+        $ticket->setSeatNumber($seat->getSeatNumber());
+        $assignedTickets[] = $ticket;
+    }
+
+    foreach ($economyPlusClassSeats as $seat) {
+        if (empty($economyPlusClassTickets)) {
+            break;
+        }
+        $ticket = array_shift($economyPlusClassTickets);
+
+        $ticket->setSeatNumber($seat->getSeatNumber());
+
+        $assignedTickets[] = $ticket;
+    }
+
+    foreach ($economyClassSeats as $seat) {
+        if (empty($economyClassTickets)) {
+            break;
+        }
+        $ticket = array_shift($economyClassTickets);
+        $ticket->setSeatNumber($seat->getSeatNumber());
+
+        $assignedTickets[] = $ticket;
+    }
+
+    return $assignedTickets;
+}
+ function assignSeats2(array $tickets)
+{
+    // Filtering the seats by class
+    $firstClassSeats = array_filter($this->getSeats(), function ($seat) {
+        return $seat->getSeatClass() === Tickets737::FIRST_CLASS;
+    });
+
+    $economyPlusClassSeats = array_filter($this->getSeats(), function ($seat) {
+        return $seat->getSeatClass() === Tickets737::ECONOMY_PLUS;
+    });
+
+    $economyClassSeats = array_filter($this->getSeats(), function ($seat) {
+        return $seat->getSeatClass() === Tickets737::ECONOMY;
+    });
+
+    // Filtering the tickets by class
+    $firstClassTickets = array_filter($tickets, function ($ticket) {
+        return $ticket->getSeating() === Tickets737::FIRST_CLASS;
+    });
+
+    $economyPlusClassTickets = array_filter($tickets, function ($ticket) {
+        return $ticket->getSeating() === Tickets737::ECONOMY_PLUS;
+    });
+
+    $economyClassTickets = array_filter($tickets, function ($ticket) {
+        return $ticket->getSeating() === Tickets737::ECONOMY;
+    });
+
+    $assignedTickets = [];
+
+    foreach ($firstClassSeats as $seat) {
+        if (empty($firstClassTickets)) {
+            break;
+        }
+
+        // Checking if the ticket prefers a window seat and the seat is A or F
+        foreach ($firstClassTickets as $key => $ticket) {
+            if ($ticket->getPrefersWindowSeat() && preg_match('/[AF]$/', $seat->getSeatNumber())) {
+                $ticket->setSeatNumber($seat->getSeatNumber());
+                $assignedTickets[] = $ticket;
+                unset($firstClassTickets[$key]);
+                break;
+            }
+        }
+
+        // If no preferred window seat was found, assign a non-preferred seat
+        if (!empty($firstClassTickets)) {
+            $ticket = array_shift($firstClassTickets);
+            $ticket->setSeatNumber($seat->getSeatNumber());
+            $assignedTickets[] = $ticket;
+        }
+    }
+
+    // Assign the remaining first class tickets to seats
+    while (!empty($firstClassSeats) && !empty($firstClassTickets)) {
+        $seat = array_shift($firstClassSeats);
+        $ticket = array_shift($firstClassTickets);
+        $ticket->setSeatNumber($seat->getSeatNumber());
+        $assignedTickets[] = $ticket;
+    }
+}
